@@ -37,6 +37,7 @@
 #include "applypatch/applypatch.h"
 
 #include "flashutils/flashutils.h"
+#include "ubitools/ubi_tools.h"
 
 #ifdef USE_EXT4
 #include "make_ext4fs.h"
@@ -258,6 +259,15 @@ Value* FormatFn(const char* name, State* state, int argc, Expr* argv[]) {
         int status = format_ext3_device(location);
         if (status != 0) {
             fprintf(stderr, "%s: format_ext3_device failed (%d) on %s",
+                    name, status, location);
+            result = strdup("");
+            goto done;
+        }
+        result = location;
+    } else if (strcmp(fs_type, "ubifs") == 0) {
+        int status = ubi_updatevol(location, NULL);
+        if (status != 0) {
+            fprintf(stderr, "%s: ubi_updatevol failed (%d) on %s",
                     name, status, location);
             result = strdup("");
             goto done;

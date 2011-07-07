@@ -28,7 +28,7 @@ endif
 LOCAL_STATIC_LIBRARIES += libflashutils libmtdutils libmmcutils libbmlutils
 
 LOCAL_STATIC_LIBRARIES += $(TARGET_RECOVERY_UPDATER_LIBS) $(TARGET_RECOVERY_UPDATER_EXTRA_LIBS)
-LOCAL_STATIC_LIBRARIES += libapplypatch libedify libmtdutils libminzip libz
+LOCAL_STATIC_LIBRARIES += libapplypatch libedify libmtdutils libminzip libz libubitools
 LOCAL_STATIC_LIBRARIES += libmincrypt libbz
 LOCAL_STATIC_LIBRARIES += libcutils libstdc++ libc
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/..
