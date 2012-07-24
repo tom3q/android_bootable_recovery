@@ -270,11 +270,11 @@ prompt_and_wait() {
 }
 
 int
-bootdroid_main(int argc, char **argv) {
+droidboot_main(int argc, char **argv) {
     time_t start = time(NULL);
 
     // If these fail, there's not really anywhere to complain...
-    printf("Starting bootdroid on %s", ctime(&start));
+    printf("Starting DroidBoot on %s", ctime(&start));
 
     ui_init();
     ui_print(EXPAND(RECOVERY_VERSION)"\n");
