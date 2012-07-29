@@ -260,7 +260,7 @@ select_file(char *msg, char* path, char *out, size_t out_len) {
 
 static void
 build_cmdline(char *cmdline, size_t space) {
-    int i;
+    int i, quotation;
     struct tunable *t = tunables;
     cmdline[0] = 0;
     for (i = 0; i < tunable_count; ++i, ++t) {
@@ -273,9 +273,19 @@ build_cmdline(char *cmdline, size_t space) {
         }
         if (!t->values[t->value][0])
             continue;
+        quotation = (strpbrk(t->name, " \t=") != 0);
+        if (quotation)
+            strlcat(cmdline, "\"", space);
         strlcat(cmdline, t->name, space);
+        if (quotation)
+            strlcat(cmdline, "\"", space);
         strlcat(cmdline, "=", space);
+        quotation = (strpbrk(t->values[t->value], " \t=") != 0);
+        if (quotation)
+            strlcat(cmdline, "\"", space);
         strlcat(cmdline, t->values[t->value], space);
+        if (quotation)
+            strlcat(cmdline, "\"", space);
         strlcat(cmdline, " ", space);
     }
 }
