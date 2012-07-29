@@ -66,6 +66,13 @@ enum {
     TYPE_SEPARATOR
 };
 
+enum {
+    EXIT_REBOOT = 0,
+    EXIT_POWEROFF,
+    EXIT_RELOAD,
+    EXIT_KEXEC
+};
+
 struct bootable {
     char *label;
     char *path;
@@ -93,7 +100,7 @@ struct tunable {
 };
 
 static int allow_display_toggle = 1;
-static int poweroff = 0;
+static int exit_mode = EXIT_REBOOT;
 
 static char **bootmenu_labels = 0;
 static struct bootmenu_item *bootmenu_items = 0;
@@ -318,22 +325,22 @@ show_mount_usb_storage_menu(void);
 static int
 execute_action(int action, const char *path) {
     switch (action) {
-    case ACTION_BOOT: {
+    case ACTION_BOOT:
         kexec(path);
-        ui_print("Kexec failed\n");
-        break; }
+        exit_mode = EXIT_KEXEC;
+        return 1;
     case ACTION_MASS_STORAGE:
         ensure_path_unmounted(SDCARD_ROOT);
         show_mount_usb_storage_menu();
         break;
     case ACTION_RELOAD:
-        poweroff = -1;
+        exit_mode = EXIT_RELOAD;
         return 1;
     case ACTION_REBOOT:
-        poweroff = 0;
+        exit_mode = EXIT_REBOOT;
         return 1;
     case ACTION_POWEROFF:
-        poweroff = 1;
+        exit_mode = EXIT_POWEROFF;
         return 1;
     default:
         ui_print("Unknown action\n");
@@ -727,6 +734,7 @@ int
 droidboot_main(int argc, char **argv) {
     time_t start = time(NULL);
     int ret;
+    char *kexec_boot[] = {"/sbin/kexec", "-e", NULL};
 
     // If these fail, there's not really anywhere to complain...
     printf("Starting DroidBoot on %s\n", ctime(&start));
@@ -768,37 +776,52 @@ droidboot_main(int argc, char **argv) {
 
     // Check boot hotkeys
     ret = check_keychords();
+    if (!bootable_count) {
+        ui_print("No bootables defined, entering menu...\n");
+        ret = 0;
+    } else if (ret >= bootable_count) {
+        ui_print("Bootable %d not defined, entering menu...\n", ret);
+        ret = 0;
+    }
 
     switch (ret) {
     case -1:
-        if (!paths[0]) {
-            ui_print("No default boot image defined, entering menu...\n");
-            break;
-        }
         ui_print("Booting default...\n");
         execute_action(ACTION_BOOT, paths[0]);
-        ui_print("Boot failed, entering menu.\n");
+        exit_mode = EXIT_KEXEC;
         break;
     case 0:
         ui_print("Entering boot menu...\n");
+        prompt_and_wait();
         break;
     default:
         ui_print("Booting position %d...\n", ret);
         execute_action(ACTION_BOOT, paths[ret]);
-        ui_print("Boot failed, entering menu...\n");
+        exit_mode = EXIT_KEXEC;
     }
 
-    prompt_and_wait();
-
-    // Otherwise, get ready to boot the main system...
-    if (!poweroff)
-        ui_print("Rebooting...\n");
-    else if (poweroff > 0)
-        ui_print("Shutting down...\n");
     if (settings_modified)
         save_settings("/boot/settings");
     sync();
-    if (poweroff >= 0)
-        reboot((!poweroff) ? RB_AUTOBOOT : RB_POWER_OFF);
+
+    switch (exit_mode) {
+    case EXIT_KEXEC:
+        ui_print("Launching new kernel...\n");
+        run_exec_process(kexec_boot);
+        ui_print("Booting failed, rebooting...\n");
+        reboot(RB_AUTOBOOT);
+        break;
+    case EXIT_POWEROFF:
+        ui_print("Shutting down...\n");
+        reboot(RB_POWER_OFF);
+        break;
+    case EXIT_REBOOT:
+        ui_print("Rebooting...\n");
+        reboot(RB_AUTOBOOT);
+        break;
+    default:
+        break;
+    }
+
     return EXIT_SUCCESS;
 }
