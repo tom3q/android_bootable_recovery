@@ -416,6 +416,8 @@ static char *parse_line(char *line, char **save_ptr) {
         case ' ':
         case '\t':
         case '\n':
+            if (!chars)
+                line = ptr + 1;
             if (quotation || !chars)
                 continue;
             *ptr = 0;
