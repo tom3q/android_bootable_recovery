@@ -660,6 +660,7 @@ parse_settings(const char *path) {
 static void
 save_settings(const char *path) {
     char buf[1024];
+    ensure_path_mounted(path);
     strlcpy(buf, path, 1024);
     strlcat(buf, ".old", 1024);
     rename(path, buf);
@@ -675,6 +676,7 @@ save_settings(const char *path) {
             fprintf(f, "\"%s\"\t%d\n", t->name, t->value);
     }
     fclose(f);
+    ensure_path_unmounted(path);
 }
 
 static void
@@ -814,6 +816,7 @@ droidboot_main(int argc, char **argv) {
 
     if (settings_modified)
         save_settings("/boot/settings");
+    ensure_path_unmounted("/boot");
     sync();
 
     switch (exit_mode) {
