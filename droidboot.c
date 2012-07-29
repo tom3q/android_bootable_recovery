@@ -301,22 +301,24 @@ build_cmdline(char *cmdline, size_t space) {
 extern int
 run_exec_process ( char **argv);
 
-static void
+static int
 do_kexec(const char *path, const char *cmdline) {
     const char *kexec_load[] = {"/sbin/kexec", "-l", path, cmdline, NULL};
-    run_exec_process((char **)kexec_load);
+    return run_exec_process((char **)kexec_load);
 }
 
-static void
+static int
 kexec(const char *path) {
+    int ret;
     char cmdline[1024];
     if (!path)
-        return;
+        return -1;
     build_cmdline(cmdline, 1024);
     ui_print("Booting '%s', cmdline='%s'\n", path, cmdline);
     ensure_path_mounted(path);
-    do_kexec(path, cmdline);
+    ret = do_kexec(path, cmdline);
     ensure_path_unmounted(path);
+    return ret;
 }
 
 extern void
@@ -326,7 +328,8 @@ static int
 execute_action(int action, const char *path) {
     switch (action) {
     case ACTION_BOOT:
-        kexec(path);
+        if (kexec(path))
+            return 0;
         exit_mode = EXIT_KEXEC;
         return 1;
     case ACTION_MASS_STORAGE:
@@ -390,7 +393,10 @@ prompt_and_wait() {
                     strlcpy(path, item->path, PATH_MAX);
             } while (ret > 0);
             if (!ret)
-                execute_action(item->action, path);
+               if (execute_action(item->action, path)) {
+                   ensure_path_unmounted(item->path);
+                   return;
+               }
             ensure_path_unmounted(item->path);
             break; }
         case TYPE_SUBMENU:
@@ -787,8 +793,11 @@ droidboot_main(int argc, char **argv) {
     switch (ret) {
     case -1:
         ui_print("Booting default...\n");
-        execute_action(ACTION_BOOT, paths[0]);
         exit_mode = EXIT_KEXEC;
+        if (!execute_action(ACTION_BOOT, paths[0])) {
+            ui_print("Booting failed, entering boot menu...\n");
+            prompt_and_wait();
+        }
         break;
     case 0:
         ui_print("Entering boot menu...\n");
@@ -796,8 +805,11 @@ droidboot_main(int argc, char **argv) {
         break;
     default:
         ui_print("Booting position %d...\n", ret);
-        execute_action(ACTION_BOOT, paths[ret]);
         exit_mode = EXIT_KEXEC;
+        if (!execute_action(ACTION_BOOT, paths[ret])) {
+            ui_print("Booting failed, entering boot menu...\n");
+            prompt_and_wait();
+        }
     }
 
     if (settings_modified)
