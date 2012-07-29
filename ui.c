@@ -105,11 +105,38 @@ static int show_menu = 0;
 static int menu_top = 0, menu_items = 0, menu_sel = 0;
 static int menu_show_start = 0;             // this is line which menu display is starting at
 
-// Key event input queue
+// Key event input queue (size must be a power of two)
+#define KEY_QUEUE_SIZE  (256)
 static pthread_mutex_t key_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t key_queue_cond = PTHREAD_COND_INITIALIZER;
-static int key_queue[256], key_queue_len = 0;
+static int key_queue[KEY_QUEUE_SIZE], key_queue_head = 0, key_queue_tail = 0;
 static volatile char key_pressed[KEY_MAX + 1];
+
+static inline int key_queue_cnt(void)
+{
+    return (key_queue_head - key_queue_tail) & (KEY_QUEUE_SIZE - 1);
+}
+
+static inline int key_queue_space(void)
+{
+    return (key_queue_tail - key_queue_head - 1) & (KEY_QUEUE_SIZE - 1);
+}
+
+static inline void key_queue_put(int c)
+{
+    int head = key_queue_head;
+    key_queue[head] = c;
+    key_queue_head = (head + 1) & (KEY_QUEUE_SIZE - 1);
+}
+
+static inline int key_queue_get(void)
+{
+    int ret;
+    int tail = key_queue_tail;
+    ret = key_queue[tail];
+    key_queue_tail = (tail + 1) & (KEY_QUEUE_SIZE - 1);
+    return ret;
+}
 
 // Clear the screen and draw the currently selected background icon (if any).
 // Should only be called with gUpdateMutex locked.
@@ -329,9 +356,8 @@ static void *input_thread(void *cookie)
             key_pressed[ev.code] = ev.value;
         }
         fake_key = 0;
-        const int queue_max = sizeof(key_queue) / sizeof(key_queue[0]);
-        if (ev.value > 0 && key_queue_len < queue_max) {
-            key_queue[key_queue_len++] = ev.code;
+        if (ev.value > 0 && key_queue_space()) {
+            key_queue_put(ev.code);
             pthread_cond_signal(&key_queue_cond);
         }
         pthread_mutex_unlock(&key_queue_mutex);
@@ -610,12 +636,11 @@ void ui_show_text(int visible)
 int ui_wait_key()
 {
     pthread_mutex_lock(&key_queue_mutex);
-    while (key_queue_len == 0) {
+    while (!key_queue_cnt()) {
         pthread_cond_wait(&key_queue_cond, &key_queue_mutex);
     }
 
-    int key = key_queue[0];
-    memcpy(&key_queue[0], &key_queue[1], sizeof(int) * --key_queue_len);
+    int key = key_queue_get();
     pthread_mutex_unlock(&key_queue_mutex);
     return key;
 }
@@ -628,7 +653,8 @@ int ui_key_pressed(int key)
 
 void ui_clear_key_queue() {
     pthread_mutex_lock(&key_queue_mutex);
-    key_queue_len = 0;
+    key_queue_head = 0;
+    key_queue_tail = 0;
     pthread_mutex_unlock(&key_queue_mutex);
 }
 
