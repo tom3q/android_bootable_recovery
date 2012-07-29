@@ -263,6 +263,7 @@ build_cmdline(char *cmdline, size_t space) {
     int i, quotation;
     struct tunable *t = tunables;
     cmdline[0] = 0;
+    strlcat(cmdline, "--command-line=", space);
     for (i = 0; i < tunable_count; ++i, ++t) {
         if (!t->num_values) {
             if (t->value) {
@@ -290,9 +291,13 @@ build_cmdline(char *cmdline, size_t space) {
     }
 }
 
-static void
-do_kexec(const char *path) {
+extern int
+run_exec_process ( char **argv);
 
+static void
+do_kexec(const char *path, const char *cmdline) {
+    const char *kexec_load[] = {"/sbin/kexec", "-l", path, cmdline, NULL};
+    run_exec_process((char **)kexec_load);
 }
 
 static void
@@ -303,7 +308,7 @@ kexec(const char *path) {
     build_cmdline(cmdline, 1024);
     ui_print("Booting '%s', cmdline='%s'\n", path, cmdline);
     ensure_path_mounted(path);
-    do_kexec(path);
+    do_kexec(path, cmdline);
     ensure_path_unmounted(path);
 }
 
