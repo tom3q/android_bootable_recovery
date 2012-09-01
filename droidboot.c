@@ -470,6 +470,10 @@ static char *parse_line(char *line, char **save_ptr) {
 static int
 check_keychords(void) {
     int i;
+    if (!num_key_chords) {
+        ui_print("No key chords defined, entering menu...\n");
+	return 0;
+    }
     for (i = 0; i < num_key_chords; ++i) {
         int k;
         struct key_chord *c = &key_chord_table[i];
